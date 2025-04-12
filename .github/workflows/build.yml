@@ -1,23 +1,36 @@
-name: Java CI - Build on Push
+# Automatically build the project and run any configured tests for every push
+# and submitted pull request. This can help catch issues that only occur on
+# certain platforms or Java versions, and provides a first line of defence
+# against bad commits.
 
-on:
-  push:
-    branches: [ main, dev, "1.**" ]
-  workflow_dispatch:
-    inputs:
-      skip_maven_publish:
-        description: 'Skip Maven publishing'
-        required: true
-        default: 'false'
+name: Build
+on: [push, pull_request]
 
 jobs:
   build:
-    if: |
-      !contains(github.event.head_commit.message, '[ciskip]')
-    uses: FTBTeam/mods-meta/.github/workflows/standard-release.yml@main
-    with:
-      curse-publish-task: ""
-      maven-snapshots: true
-    secrets:
-      ftb-maven-token: ${{ secrets.FTB_MAVEN_TOKEN }}
-      saps-token: ${{ secrets.SAPS_TOKEN }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ubuntu-latest
+        java: [ '21' ]
+      fail-fast: false
+    name: ${{ matrix.os }}
+    steps:
+      - name: Checkout Git Repository
+        uses: actions/checkout@v3
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java }}
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+      - name: Execute build
+        run: ./gradlew --info --stacktrace build
+      - name: Upload RPM as an artifact
+        uses: actions/upload-artifact@v4.6.1
+        with:
+          name: Artifacts
+          path: build/
